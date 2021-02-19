@@ -1,0 +1,25 @@
+{
+   "version": {
+      "name": "1.0-indev1",
+      "version": 1,
+      "release": 0,
+      "build": 11,
+      "stage": "a",
+      "stage_release": 1
+   },
+   "build_info": {
+      "date": "2021-02-20T00:18:10.956",
+      "compile": {
+         "name": "compileJava",
+         "source_compat": "1.8",
+         "target_compat": "1.8",
+         "gradle": {
+            "version": "6.7"
+         }
+      },
+      "project": {
+         "name": "LWJGL-3-Tutorial",
+         "display_name": "root project \u0027LWJGL-3-Tutorial\u0027"
+      }
+   }
+}

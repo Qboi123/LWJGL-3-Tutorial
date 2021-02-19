@@ -1,42 +1,269 @@
-apply plugin: 'java'
-apply plugin: 'maven'
-apply plugin: 'application'
-apply plugin: 'eclipse'
-apply plugin: 'idea'
+import com.google.gson.*
+import com.google.gson.stream.*
+import com.google.gson.stream.JsonWriter
+import org.apache.commons.io.FileUtils
+import org.apache.commons.io.IOUtils
+import java.time.LocalDateTime
+import java.time.ZoneId
 
-mainClassName = 'com.github.elegantwhelp.game.Main'
-group = 'com.github.elegantwhelp'
-version = '1.0.0-SNAPSHOT'
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        jcenter()
+        google()
 
-description = "LWJGL-3-Tutorial"
+        maven {
+            url = "https://plugins.gradle.org/m2/"
+        }
+    }
 
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
-tasks.withType(JavaCompile) {
-	options.encoding = 'UTF-8'
+    dependencies {
+        classpath group: 'commons-io', name: 'commons-io', version: '2.8.0'
+        classpath "com.google.code.gson:gson:2.8.+"
+        classpath "io.freefair.gradle:lombok-plugin:4.1.6"
+    }
 }
 
-repositories {
-        
-     maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
-     maven { url "http://repo.maven.apache.org/maven2" }
+plugins {
+    id 'java'
 }
-dependencies {
-    compile group: 'org.joml', name: 'joml-camera', version:'1.2.0-SNAPSHOT'
-    compile group: 'org.lwjgl', name: 'lwjgl', version:'3.1.2-SNAPSHOT'
-    compile group: 'org.lwjgl', name: 'lwjgl-glfw', version:'3.1.2-SNAPSHOT'
-    compile group: 'org.lwjgl', name: 'lwjgl-opengl', version:'3.1.2-SNAPSHOT'
-    compile group: 'org.lwjgl', name: 'lwjgl-stb', version:'3.1.2-SNAPSHOT'
-    compile group: 'org.lwjgl', name: 'lwjgl', version:'3.1.2-SNAPSHOT', classifier:'natives-windows'
-    compile group: 'org.lwjgl', name: 'lwjgl-opengl', version:'3.1.2-SNAPSHOT', classifier:'natives-windows'
-    compile group: 'org.lwjgl', name: 'lwjgl-glfw', version:'3.1.2-SNAPSHOT', classifier:'natives-windows'
-    compile group: 'org.lwjgl', name: 'lwjgl-stb', version:'3.1.2-SNAPSHOT', classifier:'natives-windows'
+
+apply plugin: "io.freefair.lombok"
+
+println('Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getProperty('java.vm.version') + '(' + System.getProperty('java.vendor') + ') Arch: ' + System.getProperty('os.arch'))
+println("OS: " + System.getProperty("os.name") + " Version: " + System.getProperty("os.version"))
+
+// Read build number file.
+int vers = Integer.parseInt(project.property("version1").toString())
+int release = Integer.parseInt(project.property("versionRelease").toString())
+String stage = project.property("versionStage").toString()
+int stageRelease = Integer.parseInt(project.property("versionStageRelease").toString())
+
+Integer buildNumber
+try {
+    FileInputStream fileInputStream = new FileInputStream("buildnumber.txt")
+    String buildNrString = new String(IOUtils.toByteArray(fileInputStream))
+    fileInputStream.close()
+    try {
+        buildNumber = Integer.valueOf(buildNrString)
+    } catch (NumberFormatException ignored) {
+        buildNumber = 0
+    }
+} catch(IOException e) {
+    buildNumber = 0;
+}
+
+
+// Advance build number.
+buildNumber++
+println("Executing build " + buildNumber)
+String newBuild = buildNumber.toString()
+
+// Write new build number.
+if (!new File("buildnumber.txt").exists()) {
+    new File("buildnumber.txt").createNewFile()
+}
+FileOutputStream output = new FileOutputStream("buildnumber.txt")
+output.write(newBuild.getBytes())
+output.flush()
+output.close()
+
+version vers + "." + release + '.' + buildNumber + "-" + stage + stageRelease
+group 'com.qtech.bubbles' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
+archivesBaseName = 'qforgemod'
+
+jar.version = version
+jar.archiveVersion.set(version)
+
+sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8' // Need this here so eclipse task generates correctly.
+
+//GroovyShell shell = new GroovyShell(this.getClass().getClassLoader(), this.binding);
+//shell.run(file, arguments);
+
+println("Current version: " + version)
+println("Project: " + group + ":" + archivesBaseName)
+println("Bulding a Java " + compileJava.targetCompatibility + " project...")
+
+group 'com.qsoftware'
+version '1.0-indev1'
+
+import org.gradle.internal.os.OperatingSystem
+
+project.ext.lwjglVersion = "3.2.3"
+project.ext.jomlVersion = "1.10.0"
+
+import org.gradle.internal.os.OperatingSystem
+
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+switch (OperatingSystem.current()) {
+    case OperatingSystem.LINUX:
+        def osArch = System.getProperty("os.arch")
+        project.ext.lwjglNatives = osArch.startsWith("arm") || osArch.startsWith("aarch64")
+                ? "natives-linux-${osArch.contains("64") || osArch.startsWith("armv8") ? "arm64" : "arm32"}"
+                : "natives-linux"
+        break
+    case OperatingSystem.MAC_OS:
+        project.ext.lwjglNatives = "natives-macos"
+        break
+    case OperatingSystem.WINDOWS:
+        project.ext.lwjglNatives = System.getProperty("os.arch").contains("64") ? "natives-windows" : "natives-windows-x86"
+        break
 }
 
 sourceSets {
     main {
-        java {
-            srcDirs = ["src/main/java", "src/main/resources"]
+        resources {
+            srcDirs "src/main/resources"
         }
     }
 }
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.jetbrains:annotations:20.1.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+
+    implementation platform("org.lwjgl:lwjgl-bom:3.2.3")
+
+    implementation "org.lwjgl:lwjgl"
+    implementation "org.lwjgl:lwjgl-assimp"
+    implementation "org.lwjgl:lwjgl-bgfx"
+    implementation "org.lwjgl:lwjgl-cuda"
+    implementation "org.lwjgl:lwjgl-egl"
+    implementation "org.lwjgl:lwjgl-glfw"
+    implementation "org.lwjgl:lwjgl-jawt"
+    implementation "org.lwjgl:lwjgl-jemalloc"
+    implementation "org.lwjgl:lwjgl-libdivide"
+    implementation "org.lwjgl:lwjgl-llvm"
+    implementation "org.lwjgl:lwjgl-lmdb"
+    implementation "org.lwjgl:lwjgl-lz4"
+    implementation "org.lwjgl:lwjgl-meow"
+    implementation "org.lwjgl:lwjgl-nanovg"
+    implementation "org.lwjgl:lwjgl-nfd"
+    implementation "org.lwjgl:lwjgl-nuklear"
+    implementation "org.lwjgl:lwjgl-odbc"
+    implementation "org.lwjgl:lwjgl-openal"
+    implementation "org.lwjgl:lwjgl-opencl"
+    implementation "org.lwjgl:lwjgl-opengl"
+    implementation "org.lwjgl:lwjgl-opengles"
+    implementation "org.lwjgl:lwjgl-openvr"
+    implementation "org.lwjgl:lwjgl-opus"
+    implementation "org.lwjgl:lwjgl-ovr"
+    implementation "org.lwjgl:lwjgl-par"
+    implementation "org.lwjgl:lwjgl-remotery"
+    implementation "org.lwjgl:lwjgl-rpmalloc"
+    implementation "org.lwjgl:lwjgl-shaderc"
+    implementation "org.lwjgl:lwjgl-sse"
+    implementation "org.lwjgl:lwjgl-stb"
+    implementation "org.lwjgl:lwjgl-tinyexr"
+    implementation "org.lwjgl:lwjgl-tinyfd"
+    implementation "org.lwjgl:lwjgl-tootle"
+    implementation "org.lwjgl:lwjgl-vma"
+    implementation "org.lwjgl:lwjgl-vulkan"
+    implementation "org.lwjgl:lwjgl-xxhash"
+    implementation "org.lwjgl:lwjgl-yoga"
+    implementation "org.lwjgl:lwjgl-zstd"
+    runtimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-assimp::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-bgfx::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-jemalloc::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-libdivide::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-llvm::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-lmdb::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-lz4::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-meow::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-nanovg::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-nfd::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-nuklear::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-openal::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-opengles::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-openvr::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-opus::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-ovr::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-par::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-remotery::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-rpmalloc::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-shaderc::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-sse::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-stb::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-tinyexr::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-tinyfd::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-tootle::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-vma::$lwjglNatives"
+    if (lwjglNatives == "natives-macos") runtimeOnly "org.lwjgl:lwjgl-vulkan::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-xxhash::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-yoga::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-zstd::$lwjglNatives"
+    implementation "org.joml:joml:1.10.0"
+}
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': 'QBubbles',
+                'Implementation-Vendor': 'QTech Community',
+                'Implementation-Version': version,
+                'Main-Class': 'com.qtech.bubbles.game.Main'
+    }
+}
+
+Gson gson = new Gson()
+JsonObject json = new JsonObject();
+
+// \version
+JsonObject versionJ = new JsonObject()
+versionJ.addProperty "name", version.toString()
+versionJ.addProperty "version", vers
+versionJ.addProperty "release", release
+versionJ.addProperty "build", buildNumber
+versionJ.addProperty "stage", stage
+versionJ.addProperty "stage_release", stageRelease
+
+// \flags
+JsonObject buildInfoJ = new JsonObject()
+buildInfoJ.addProperty("date", LocalDateTime.now(ZoneId.systemDefault()).toString())
+
+// \compile
+JsonObject compileJ = new JsonObject()
+compileJ.addProperty "name", compileJava.name
+compileJ.addProperty "source_compat", compileJava.sourceCompatibility
+compileJ.addProperty "target_compat", compileJava.targetCompatibility
+
+// \project
+JsonObject projectJ = new JsonObject()
+projectJ.addProperty "name", project.name != null ? project.name : ""
+projectJ.addProperty "display_name", project.displayName != null ? project.displayName : ""
+
+// \project\gradle
+JsonObject gradleJ = new JsonObject();
+gradleJ.addProperty "version", gradle.gradleVersion
+
+compileJ  .add "gradle",     gradleJ
+buildInfoJ.add "compile",    compileJ
+buildInfoJ.add "project",    projectJ
+json      .add "version",    versionJ
+json      .add "build_info", buildInfoJ
+
+File gameArgsFile = new File("src/main/resources/META-INF/game_args.json")
+//File qfmArgsFile = new File("qfm_args.json")
+if (gameArgsFile.exists()) {
+    gameArgsFile.delete()
+}
+gameArgsFile.createNewFile()
+FileWriter fileWriter = new FileWriter(gameArgsFile)
+JsonWriter jsonWriter = new JsonWriter(fileWriter)
+jsonWriter.setIndent("   ")
+gson.toJson(json, jsonWriter)
+fileWriter.flush()
+fileWriter.close()
